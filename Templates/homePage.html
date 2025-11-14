@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ephemeral Chat - Home</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .section h2 {
+            margin-bottom: 15px;
+            color: #555;
+            font-size: 18px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button.decline {
+            background-color: #dc3545;
+        }
+        
+        button.decline:hover {
+            background-color: #c82333;
+        }
+        
+        button.accept {
+            background-color: #28a745;
+        }
+        
+        button.accept:hover {
+            background-color: #218838;
+        }
+        
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+        }
+        
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .request-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .request-item span {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .request-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .request-buttons button {
+            padding: 5px 15px;
+            font-size: 12px;
+        }
+        
+        #incoming_requests_list {
+            min-height: 50px;
+        }
+        
+        .no-requests {
+            color: #999;
+            font-style: italic;
+            padding: 10px;
+        }
+        
+        .current-user {
+            background-color: #e7f3ff;
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 20px;
+        }
+        
+        .current-user strong {
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ephemeral Chat Application</h1>
+        
+        <div id="message_area"></div>
+        
+        <div class="current-user" id="current_user_display" style="display: none;">
+            Current User: <strong id="current_user_phone"></strong>
+        </div>
+        
+        <div class="section">
+            <h2>Register / Login</h2>
+            <div class="form-group">
+                <label for="register_phone">Your Phone Number:</label>
+                <input type="text" id="register_phone" placeholder="Enter your phone number">
+            </div>
+            <button onclick="registerUser()">Register / Login</button>
+        </div>
+        
+        <div class="section">
+            <h2>Send Chat Request</h2>
+            <div class="form-group">
+                <label for="target_phone">Target Phone Number:</label>
+                <input type="text" id="target_phone" placeholder="Enter phone number to chat with">
+            </div>
+            <button onclick="sendRequest()">Send Request</button>
+        </div>
+        
+        <div class="section">
+            <h2>Incoming Requests</h2>
+            <button onclick="loadIncomingRequests()">Refresh Requests</button>
+            <div id="incoming_requests_list" style="margin-top: 15px;"></div>
+        </div>
+        
+        <div class="section">
+            <h2>Active Chatrooms</h2>
+            <button onclick="loadActiveChatrooms()">Refresh Chatrooms</button>
+            <div id="active_chatrooms_list" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentUserPhone = localStorage.getItem('current_user_phone') || '';
+        let socket = null;
+        let isRedirecting = false;
+        
+        // Initialize WebSocket connection
+        function initSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('WebSocket connected');
+                // Register user socket if already logged in
+                if (currentUserPhone) {
+                    registerUserSocket();
+                }
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('WebSocket disconnected');
+            });
+            
+            // Listen for request accepted event
+            socket.on('request_accepted', (data) => {
+                console.log('Request accepted event received:', data);
+                if (data.chat_id && !isRedirecting) {
+                    isRedirecting = true;
+                    showMessage('Request accepted! Redirecting to chatroom...');
+                    setTimeout(() => {
+                        window.location.href = `/chatroom/${data.chat_id}`;
+                    }, 1000);
+                }
+            });
+        }
+        
+        function registerUserSocket() {
+            if (socket && socket.connected && currentUserPhone) {
+                socket.emit('register_user_socket', { phone: currentUserPhone });
+            }
+        }
+        
+        // Initialize socket on page load
+        initSocket();
+        
+        if (currentUserPhone) {
+            document.getElementById('current_user_phone').textContent = currentUserPhone;
+            document.getElementById('current_user_display').style.display = 'block';
+            loadActiveChatrooms();
+        }
+        
+        function showMessage(text, isError = false) {
+            const messageArea = document.getElementById('message_area');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + (isError ? 'error' : 'success');
+            messageDiv.textContent = text;
+            messageArea.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+        
+        function registerUser() {
+            const phone = document.getElementById('register_phone').value.trim();
+            if (!phone) {
+                showMessage('Please enter your phone number', true);
+                return;
+            }
+            
+            fetch('/register_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ phone: phone })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentUserPhone = phone;
+                    localStorage.setItem('current_user_phone', phone);
+                    document.getElementById('current_user_phone').textContent = phone;
+                    document.getElementById('current_user_display').style.display = 'block';
+                    showMessage('Successfully registered!');
+                    registerUserSocket(); // Register socket with phone number
+                } else {
+                    showMessage(data.error || 'Registration failed', true);
+                }
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, true);
+            });
+        }
+        
+        function sendRequest() {
+            if (!currentUserPhone) {
+                showMessage('Please register first', true);
+                return;
+            }
+            
+            const targetPhone = document.getElementById('target_phone').value.trim();
+            if (!targetPhone) {
+                showMessage('Please enter target phone number', true);
+                return;
+            }
+            
+            if (targetPhone === currentUserPhone) {
+                showMessage('Cannot send request to yourself', true);
+                return;
+            }
+            
+            fetch('/send_request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    phone1: currentUserPhone,
+                    phone2: targetPhone
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(data.message || 'Request sent successfully');
+                    document.getElementById('target_phone').value = '';
+                } else {
+                    showMessage(data.message || data.error || 'Failed to send request', true);
+                }
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, true);
+            });
+        }
+        
+        function loadIncomingRequests() {
+            if (!currentUserPhone) {
+                return;
+            }
+            
+            fetch(`/incoming_request?phone=${currentUserPhone}`)
+            .then(response => response.json())
+            .then(data => {
+                const requestsList = document.getElementById('incoming_requests_list');
+                requestsList.innerHTML = '';
+                
+                if (data.success && data.incoming_request && data.incoming_request.length > 0) {
+                    data.incoming_request.forEach(phone => {
+                        const requestItem = document.createElement('div');
+                        requestItem.className = 'request-item';
+                        requestItem.innerHTML = `
+                            <span>Request from: ${phone}</span>
+                            <div class="request-buttons">
+                                <button class="accept" onclick="respondToRequest('${phone}', 'accept')">Accept</button>
+                                <button class="decline" onclick="respondToRequest('${phone}', 'decline')">Decline</button>
+                            </div>
+                        `;
+                        requestsList.appendChild(requestItem);
+                    });
+                } else {
+                    requestsList.innerHTML = '<div class="no-requests">No incoming requests</div>';
+                }
+            })
+            .catch(error => {
+                showMessage('Error loading requests: ' + error.message, true);
+            });
+        }
+        
+        function respondToRequest(fromPhone, action) {
+            if (!currentUserPhone) {
+                showMessage('Please register first', true);
+                return;
+            }
+            
+            fetch('/respond_request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    phone1: fromPhone,
+                    phone2: currentUserPhone,
+                    action: action
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (action === 'accept' && data.message && data.message.chat_id) {
+                        // The WebSocket event will handle redirect for both users
+                        // But we also redirect here as a fallback for the user who accepted
+                        if (!isRedirecting) {
+                            isRedirecting = true;
+                            showMessage('Request accepted! Redirecting to chatroom...');
+                            setTimeout(() => {
+                                window.location.href = `/chatroom/${data.message.chat_id}`;
+                            }, 1000);
+                        }
+                    } else {
+                        showMessage(action === 'accept' ? 'Request accepted' : 'Request declined');
+                    }
+                } else {
+                    showMessage(data.error || 'Failed to process request', true);
+                }
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, true);
+            });
+        }
+        
+        function loadActiveChatrooms() {
+            if (!currentUserPhone) {
+                return;
+            }
+            
+            fetch(`/active_chatrooms?phone=${currentUserPhone}`)
+            .then(response => response.json())
+            .then(data => {
+                const chatroomsList = document.getElementById('active_chatrooms_list');
+                chatroomsList.innerHTML = '';
+                
+                if (data.success && data.chatrooms && data.chatrooms.length > 0) {
+                    data.chatrooms.forEach(chatroom => {
+                        const chatroomItem = document.createElement('div');
+                        chatroomItem.className = 'request-item';
+                        chatroomItem.innerHTML = `
+                            <span>Chat with: ${chatroom.other_user}</span>
+                            <button onclick="goToChatroom('${chatroom.chat_id}')">Go to Chatroom</button>
+                        `;
+                        chatroomsList.appendChild(chatroomItem);
+                    });
+                } else {
+                    chatroomsList.innerHTML = '<div class="no-requests">No active chatrooms</div>';
+                }
+            })
+            .catch(error => {
+                showMessage('Error loading chatrooms: ' + error.message, true);
+            });
+        }
+        
+        function goToChatroom(chatId) {
+            window.location.href = `/chatroom/${chatId}`;
+        }
+    </script>
+</body>
+</html>
+
