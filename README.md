@@ -1,55 +1,42 @@
-📡 Real-Time Peer-to-Peer Chat System
-Flask · WebSockets · Redis · Event-Driven Backend
+📡 Real-Time Chat Application (Flask + WebSockets + Redis)
 
-A clean and lightweight backend-only real-time chat application, built using Flask, Flask-SocketIO, and Redis.
+A lightweight, real-time chat application built using:
 
-Users can come online, send chat requests, accept them, and instantly start chatting inside a temporary chatroom that auto-expires after 6 hours.
-This project highlights simplicity, real-time communication, and event-driven backend logic without needing a heavy frontend.
+Flask – Backend REST API
+
+Flask-SocketIO – WebSocket support for live messaging
+
+Redis – User presence, caching & message queue for SocketIO
+
+HTML/JS – Simple frontend chatroom
+
+Application Factory Pattern – Clean & scalable architecture
+
+This project demonstrates how to integrate traditional REST APIs with real-time WebSocket communication using Flask-SocketIO — ideal for learning modern backend design.
 
 🚀 Features
-🔹 Real-Time Messaging
+🔐 User System
 
-Live chatting using WebSockets
+Register users using a simple API
 
-Event-driven architecture (connect, message, disconnect)
+Online/offline status management via Redis
 
-True peer-to-peer chat rooms
+👥 Real-Time Communication
 
-🔹 Online Presence (Redis)
+Send chat requests between users
 
-Users register using their phone number
+Accept requests → creates chatroom
 
-Automatically marked “online” in Redis
+Join chatroom and exchange live messages
 
-Auto-expire if inactive
+Messages are delivered instantly using WebSockets
 
-🔹 Request + Accept System
+🧠 Architecture
 
-User A sends a request to User B
+Clean separation: routes/, socket/, services/
 
-User B gets “incoming request”
+Socket events handled in dedicated module
 
-If accepted → backend creates a chatroom ID
+Application Factory Pattern for extensibility
 
-🔹 6-Hour Auto Expiry
-
-Chatrooms + messages are temporary
-
-Redis TTL cleans old rooms automatically
-
-If users reconnect within 6 hours → chat history restored
-
-🔹 5-Minute Dropped Connection Logic
-
-If one person drops → room stays alive
-
-If both offline > 5 minutes → expire room
-
-🛠 Tech Stack
-Purpose	Technology
-Web Framework	Flask
-WebSockets	Flask-SocketIO
-In-Memory Store	Redis
-Real-Time Worker	Eventlet
-Architecture	Application Factory + Services Layer
-Deployment	Render / Railway / Docker-ready
+Redis used as transport layer for WebSocket events
