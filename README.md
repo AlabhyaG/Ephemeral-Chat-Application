@@ -1,42 +1,185 @@
-📡 Real-Time Chat Application (Flask + WebSockets + Redis)
+# Real-Time Chat Application (Flask + WebSockets + Redis)
 
-A lightweight, real-time chat application built using:
+A lightweight real-time chat backend built using Flask, Flask-SocketIO, and Redis. Supports user registration, online presence tracking, chat requests, and real-time messaging.
 
-Flask – Backend REST API
+---
 
-Flask-SocketIO – WebSocket support for live messaging
+## 🚀 Features
 
-Redis – User presence, caching & message queue for SocketIO
+* User registration
+* Online user tracking via Redis
+* Send/receive chat requests
+* Temporary chatroom creation
+* Real-time messaging using WebSockets
+* Simple HTML/JS pages for testing
 
-HTML/JS – Simple frontend chatroom
+---
 
-Application Factory Pattern – Clean & scalable architecture
+## 🧰 Tech Stack
 
-This project demonstrates how to integrate traditional REST APIs with real-time WebSocket communication using Flask-SocketIO — ideal for learning modern backend design.
+* **Flask** (Python)
+* **Flask-SocketIO**
+* **Redis**
+* **HTML + JavaScript**
 
-🚀 Features
-🔐 User System
+---
 
-Register users using a simple API
+## 📁 Project Structure
 
-Online/offline status management via Redis
+```
+project/
+├── app/
+│   ├── __init__.py
+│   ├── extensions.py
+│   ├── routes.py
+│   ├── socket_events.py
+│   ├── services/
+│   └── templates/
+├── run.py
+├── requirements.txt
+└── README.md
+```
 
-👥 Real-Time Communication
+---
 
-Send chat requests between users
+## ⚙️ Installation Steps
 
-Accept requests → creates chatroom
+### 1️⃣ Clone the repository
 
-Join chatroom and exchange live messages
+```bash
+git clone https://github.com/yourusername/realtime-chat.git
+cd realtime-chat
+```
 
-Messages are delivered instantly using WebSockets
+### 2️⃣ Create a virtual environment
 
-🧠 Architecture
+```bash
+python -m venv venv
+source venv/bin/activate   # macOS/Linux
+venv\Scripts\activate      # Windows
+```
 
-Clean separation: routes/, socket/, services/
+### 3️⃣ Install dependencies
 
-Socket events handled in dedicated module
+```bash
+pip install -r requirements.txt
+```
 
-Application Factory Pattern for extensibility
+---
 
-Redis used as transport layer for WebSocket events
+## 🗄️ Redis Setup
+
+### macOS
+
+```bash
+brew install redis
+brew services start redis
+```
+
+### Linux
+
+```bash
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+### Windows
+
+Install **Memurai** or the official Redis MSI.
+
+### Test Redis
+
+```bash
+redis-cli ping
+# PONG
+```
+
+---
+
+## ▶️ Running the App
+
+Start the backend:
+
+```bash
+python run.py
+```
+
+App will be available at:
+
+```
+http://127.0.0.1:5000/
+```
+
+---
+
+## 🔌 REST API Endpoints
+
+### **Register User**
+
+```
+POST /register_user
+```
+
+### **Send Chat Request**
+
+```
+POST /send_request
+```
+
+### **Respond to Chat Request**
+
+```
+POST /respond_request
+```
+
+### **Open Chatroom**
+
+```
+GET /chatroom?room_id={id}
+```
+
+---
+
+## 🔄 WebSocket Events
+
+### Join Room
+
+```javascript
+socket.emit("join_room", {
+  room: "room123",
+  phone: "9876543210"
+});
+```
+
+### Send Message
+
+```javascript
+socket.emit("send_message", {
+  room: "room123",
+  sender: "9876543210",
+  message: "Hello!"
+});
+```
+
+### Receive Message
+
+```javascript
+socket.on("receive_message", (data) => {
+  console.log(data);
+});
+```
+
+---
+
+## ☁️ Deployment Options
+
+* Render
+* Railway
+* AWS EC2
+* DigitalOcean
+
+---
+
+## 📄 License
+
+MI
