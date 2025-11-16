@@ -4,4 +4,4 @@ stocketio = extension.socketio
 
 if __name__=='__main__':
     app = createApp()
-    stocketio.run(app,allow_unsafe_werkzeug=True)
+    stocketio.run(app,allow_unsafe_werkzeug=True,port=5000)
