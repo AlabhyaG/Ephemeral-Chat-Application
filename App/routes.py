@@ -126,18 +126,94 @@ def reconnect_user_api():
 @routes_bp.route('/active_chatrooms', methods=['GET'])
 def get_active_chatrooms_api():
     """
-    Get all active chatrooms for a user.
+    Get all active chatrooms for a user (both direct and group).
     """
     try:
         phone = request.args.get('phone')
         if not phone:
             return jsonify({"success": False, "error": "Phone number required"}), 400
         
-        chatrooms = getActiveChatrooms(phone)
+        chatrooms = get_active_chatrooms_enhanced(phone)
         return jsonify({"success": True, "chatrooms": chatrooms}), 200
     except Exception as e:
         print(f"error getting active chatrooms: {str(e)}")
         return jsonify({"success": False, "error": f"Error fetching chatrooms: {str(e)}"}), 500
+
+
+@routes_bp.route('/verify_user', methods=['GET'])
+def verify_user_api():
+    """
+    Verify if a user is still registered/online.
+    """
+    try:
+        phone = request.args.get('phone')
+        if not phone:
+            return jsonify({"success": False, "error": "Phone number required"}), 400
+        
+        is_valid = verify_user_status(phone)
+        return jsonify({"success": True, "is_valid": is_valid}), 200
+    except Exception as e:
+        print(f"error verifying user: {str(e)}")
+        return jsonify({"success": False, "error": f"Error verifying user: {str(e)}"}), 500
+
+
+@routes_bp.route('/create_group_chat', methods=['POST'])
+def create_group_chat_api():
+    """
+    Create a group chat with up to 5 members.
+    Expected JSON: { "creator_phone": "...", "member_phones": ["...", "..."], "group_name": "..." (optional) }
+    """
+    try:
+        data = request.get_json()
+        creator_phone = data.get('creator_phone')
+        member_phones = data.get('member_phones', [])
+        group_name = data.get('group_name')
+        
+        if not creator_phone or not member_phones:
+            return jsonify({"success": False, "error": "Creator phone and member phones required"}), 400
+        
+        if not isinstance(member_phones, list):
+            return jsonify({"success": False, "error": "member_phones must be a list"}), 400
+        
+        # Check total members (creator + members) <= 5
+        all_members = [creator_phone] + [m for m in member_phones if m != creator_phone]
+        if len(set(all_members)) > 5:
+            return jsonify({"success": False, "error": "Maximum 5 members allowed (including creator)"}), 400
+        
+        chat_id = create_group_chatroom(creator_phone, member_phones, group_name)
+        
+        if chat_id:
+            # Notify all members via WebSocket
+            from .socket import emit_to_user
+            for member in all_members:
+                emit_to_user(member, 'group_chat_created', {
+                    'chat_id': chat_id,
+                    'group_name': group_name or f"Group Chat",
+                    'members': all_members
+                })
+            
+            return jsonify({"success": True, "chat_id": chat_id, "message": "Group chat created successfully"}), 200
+        else:
+            return jsonify({"success": False, "error": "Failed to create group chat. Ensure all members are online."}), 500
+    except Exception as e:
+        print(f"error creating group chat: {str(e)}")
+        return jsonify({"success": False, "error": f"Error creating group chat: {str(e)}"}), 500
+
+
+@routes_bp.route('/get_chatroom_info/<chat_id>', methods=['GET'])
+def get_chatroom_info_api(chat_id):
+    """
+    Get information about a chatroom.
+    """
+    try:
+        info = get_chatroom_info(chat_id)
+        if info:
+            return jsonify({"success": True, "chatroom": info}), 200
+        else:
+            return jsonify({"success": False, "error": "Chatroom not found or inactive"}), 404
+    except Exception as e:
+        print(f"error getting chatroom info: {str(e)}")
+        return jsonify({"success": False, "error": f"Error fetching chatroom info: {str(e)}"}), 500
 
 
 # # ---------------------------

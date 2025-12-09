@@ -7,7 +7,7 @@ load_dotenv()
 
 r = redis.StrictRedis(
     host=os.getenv('REDIS_HOST'),
-    port=os.getenv('REDIS_PORT'),
+    port=int(os.getenv('REDIS_PORT')),
     db=0,
     decode_responses=True,
     username=os.getenv('REDIS_USERNAME'),

@@ -161,3 +161,162 @@ def reconnectUser(data):
     except Exception as e:
         print(f"Error reconnecting user: {str(e)}")
         return False
+
+
+def verify_user_status(phone):
+    """
+    Verify if a user is still registered/online.
+    Returns True if user is online, False otherwise.
+    """
+    if not phone:
+        return False
+    try:
+        status = r.get(f"user:{phone}")
+        return status == 'online'
+    except Exception as e:
+        print(f"Error verifying user status: {str(e)}")
+        return False
+
+
+def create_group_chatroom(creator_phone, member_phones, group_name=None):
+    """
+    Create a group chatroom with up to 5 members (including creator).
+    Returns chat_id if successful, None otherwise.
+    """
+    if not creator_phone or not member_phones:
+        return None
+    
+    # Combine creator and members, remove duplicates
+    all_members = [creator_phone] + [m for m in member_phones if m != creator_phone]
+    all_members = list(dict.fromkeys(all_members))  # Remove duplicates while preserving order
+    
+    # Check max 5 members
+    if len(all_members) > 5:
+        return None
+    
+    # Verify all members are online
+    try:
+        online_users = r.smembers('online_users')
+        for member in all_members:
+            if member not in online_users:
+                return None
+        
+        # Create chatroom
+        chat_id = str(uuid.uuid4())
+        
+        # Store chatroom type
+        r.set(f"chatroom:{chat_id}:type", "group", ex=21600)  # 6 hours
+        
+        # Store members as a set
+        for member in all_members:
+            r.sadd(f"chatroom:{chat_id}:members", member)
+        r.expire(f"chatroom:{chat_id}:members", 21600)
+        
+        # Store creator
+        r.set(f"chatroom:{chat_id}:creator", creator_phone, ex=21600)
+        
+        # Store group name if provided
+        if group_name:
+            r.set(f"chatroom:{chat_id}:name", group_name, ex=21600)
+        
+        # Store status
+        r.set(f"chatroom:{chat_id}:status", "active", ex=21600)
+        
+        # Store mapping for each member to this chatroom
+        for member in all_members:
+            r.sadd(f"user:{member}:chatrooms", chat_id)
+        r.expire(f"user:{creator_phone}:chatrooms", 21600)
+        
+        return chat_id
+    except Exception as e:
+        print(f"Error creating group chatroom: {str(e)}")
+        return None
+
+
+def get_chatroom_info(chat_id):
+    """
+    Get information about a chatroom (type, members, name, etc.)
+    """
+    if not chat_id:
+        return None
+    
+    try:
+        status = r.get(f"chatroom:{chat_id}:status")
+        if status != "active":
+            return None
+        
+        chat_type = r.get(f"chatroom:{chat_id}:type") or "direct"
+        
+        info = {
+            "chat_id": chat_id,
+            "type": chat_type,
+            "status": status
+        }
+        
+        if chat_type == "group":
+            members = list(r.smembers(f"chatroom:{chat_id}:members"))
+            info["members"] = members
+            info["creator"] = r.get(f"chatroom:{chat_id}:creator")
+            group_name = r.get(f"chatroom:{chat_id}:name")
+            if group_name:
+                info["name"] = group_name
+        else:
+            # For direct chats, try to get members from chatrooms hash
+            all_chatrooms = r.hgetall("chatrooms")
+            for pair_key, cid in all_chatrooms.items():
+                if cid == chat_id:
+                    phones = pair_key.split(':')
+                    info["members"] = phones
+                    break
+        
+        return info
+    except Exception as e:
+        print(f"Error getting chatroom info: {str(e)}")
+        return None
+
+
+def get_active_chatrooms_enhanced(phone):
+    """
+    Enhanced version that returns both direct and group chatrooms.
+    """
+    if not phone:
+        return []
+    
+    try:
+        chatrooms = []
+        
+        # Get direct chatrooms (existing logic)
+        all_chatrooms = r.hgetall("chatrooms")
+        for pair_key, chat_id in all_chatrooms.items():
+            if phone in pair_key:
+                phones = pair_key.split(':')
+                other_phone = phones[0] if phones[1] == phone else phones[1]
+                status = r.get(f"chatroom:{chat_id}:status")
+                if status == "active":
+                    chatrooms.append({
+                        "chat_id": chat_id,
+                        "type": "direct",
+                        "other_user": other_phone,
+                        "pair": pair_key
+                    })
+        
+        # Get group chatrooms
+        user_chatrooms = r.smembers(f"user:{phone}:chatrooms")
+        for chat_id in user_chatrooms:
+            chat_type = r.get(f"chatroom:{chat_id}:type")
+            if chat_type == "group":
+                status = r.get(f"chatroom:{chat_id}:status")
+                if status == "active":
+                    members = list(r.smembers(f"chatroom:{chat_id}:members"))
+                    group_name = r.get(f"chatroom:{chat_id}:name")
+                    chatrooms.append({
+                        "chat_id": chat_id,
+                        "type": "group",
+                        "members": members,
+                        "name": group_name or f"Group ({len(members)} members)"
+                    })
+        
+        return chatrooms
+    except Exception as e:
+        print(f"Error getting active chatrooms: {str(e)}")
+        return []
