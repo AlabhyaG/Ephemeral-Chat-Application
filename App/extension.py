@@ -1,10 +1,15 @@
 from flask_socketio import SocketIO
 import redis
 socketio = SocketIO(cors_allowed_origins='*')
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 r = redis.StrictRedis(
-    host='redis-18900.c276.us-east-1-2.ec2.cloud.redislabs.com',
-    port=18900,
+    host=os.getenv('REDIS_HOST'),
+    port=os.getenv('REDIS_PORT'),
     db=0,
-    decode_responses=True
+    decode_responses=True,
+    username=os.getenv('REDIS_USERNAME'),
+    password=os.getenv('REDIS_PASSWORD')
 )
