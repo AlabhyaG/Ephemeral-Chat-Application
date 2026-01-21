@@ -171,15 +171,3 @@ socket.on("receive_message", (data) => {
 
 ---
 
-## ☁️ Deployment Options
-
-* Render
-* Railway
-* AWS EC2
-* DigitalOcean
-
----
-
-## 📄 License
-
-MI
